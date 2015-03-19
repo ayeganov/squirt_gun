@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+
+import camera
+
+camera.virtual_cam.main()

@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+
+import squirt_gun
+
+squirt_gun.auto_gun.main()
