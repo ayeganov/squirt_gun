@@ -4,27 +4,33 @@ import os
 
 import camera
 
+import numpy
+import scipy.misc
+
 
 class VirtualServer(camera.ImageServer):
     '''
     Concrete implementation of image server, which generates images from thin
     air.
     '''
-    def __init__(self, loop=None):
+    def __init__(self, image_per_second, loop=None):
         '''
         Initializes the instance of VirtualServer.
 
+        @param image_per_second - number of images to serve per second
         @param loop - asyncio loop
         '''
         self._loop = loop if loop is not None else asyncio.get_event_loop()
+        self._img_per_sec = image_per_second
 
     @asyncio.coroutine
     def serve_image(self):
         '''
         Creates a random image.
         '''
-        yield from asyncio.sleep(1)
-        return "blabla"
+        yield from asyncio.sleep(1 / self._img_per_sec)
+        img = numpy.random.random((100, 100))
+        return img
 
 
 class DiskWriter(camera.ImageWriter):
@@ -49,8 +55,11 @@ class DiskWriter(camera.ImageWriter):
         @param image_name - name to be given to the image in destination
                             directory
         '''
-        path_to_image = os.path.join(self._dest_dir, image_name)
-        #blabla save image
+        path_to_image = os.path.join(self._dest_dir, image_name + ".png")
+        try:
+            scipy.misc.imsave(path_to_image, image_data)
+        except IOError as e:
+            print("Failed to save image: {0}".format(e))
         return path_to_image
 
 
@@ -70,8 +79,10 @@ class DiskCleaner(camera.ImageCleaner):
         @param image_cnt - count of the current image
         '''
         if image_cnt >= DiskCleaner.IMAGE_LIMIT:
+            image_to_remove = os.path.join(os.path.dirname(image_path),
+                                           "%06d.png" % (image_cnt - DiskCleaner.IMAGE_LIMIT))
             try:
-                os.remove(image_path)
+                os.remove(image_to_remove)
             except IOError:
                 pass
 
@@ -81,8 +92,8 @@ def main():
         parser = argparse.ArgumentParser("Virtual camera image server")
     #    parser.add_argument()
 
-        server = VirtualServer()
-        writer = DiskWriter(dest_dir="/run")
+        server = VirtualServer(image_per_second=20)
+        writer = DiskWriter(dest_dir="/run/shm/tmp")
         cleaner = DiskCleaner()
         loop = asyncio.get_event_loop()
 
