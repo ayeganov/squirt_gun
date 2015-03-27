@@ -76,13 +76,18 @@ class Camera:
         Camera starts serving images on the img_path topic indefinitely.
         '''
         while True:
-            image = yield from self._server.serve_image()
-            image_name = "%06d" % self._img_count
-            path_to_image = yield from self._writer.write_image(image, image_name)
-            msg = sgmsg.msgs.ImagePath.new_message(path=path_to_image)
+            try:
+                image = yield from self._server.serve_image()
+                if not image:
+                    continue
+                image_name = "%06d" % self._img_count
+                path_to_image = yield from self._writer.write_image(image, image_name)
+                msg = sgmsg.msgs.ImagePath.new_message(path=path_to_image)
 
-            self._image_pub.send(msg.to_bytes_packed())
-            yield from self._cleaner.clean_image(image, path_to_image, self._img_count)
-            self._img_count += 1
-            print("Serving: {0}".format(path_to_image))
+                self._image_pub.send(msg.to_bytes())
+                yield from self._cleaner.clean_image(image, path_to_image, self._img_count)
+                self._img_count += 1
+                print("Serving: {0}".format(path_to_image))
+            except Exception as e:
+                print("Serving error:", e)
 

@@ -74,7 +74,8 @@ class DiskCleaner(camera.ImageCleaner):
         '''
         Removes the images from disk once the count exceeds the IMAGE_LIMIT.
 
-        @param image - actual image data in the form of the numpy array
+        @param image - actual image data in the form of the numpy array, bytes,
+                       etc.
         @param image_path - path to the image
         @param image_cnt - count of the current image
         '''
@@ -83,8 +84,10 @@ class DiskCleaner(camera.ImageCleaner):
                                            "%06d.png" % (image_cnt - DiskCleaner.IMAGE_LIMIT))
             try:
                 os.remove(image_to_remove)
-            except IOError:
+            except FileNotFoundError:
                 pass
+            except IOError as e:
+                print(e)
 
 
 def main():
@@ -92,8 +95,8 @@ def main():
         parser = argparse.ArgumentParser("Virtual camera image server")
     #    parser.add_argument()
 
-        server = VirtualServer(image_per_second=20)
-        writer = DiskWriter(dest_dir="/run/shm/tmp")
+        server = VirtualServer(image_per_second=100)
+        writer = DiskWriter(dest_dir="/run/shm")
         cleaner = DiskCleaner()
         loop = asyncio.get_event_loop()
 
