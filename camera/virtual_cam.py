@@ -13,14 +13,16 @@ class VirtualServer(camera.ImageServer):
     Concrete implementation of image server, which generates images from thin
     air.
     '''
-    def __init__(self, image_per_second, loop=None):
+    def __init__(self, resolution, image_per_second, loop=None):
         '''
         Initializes the instance of VirtualServer.
 
+        @param resolution - resolution of generated images
         @param image_per_second - number of images to serve per second
         @param loop - asyncio loop
         '''
         self._loop = loop if loop is not None else asyncio.get_event_loop()
+        self._resolution = resolution
         self._img_per_sec = image_per_second
 
     @asyncio.coroutine
@@ -29,7 +31,7 @@ class VirtualServer(camera.ImageServer):
         Creates a random image.
         '''
         yield from asyncio.sleep(1 / self._img_per_sec)
-        img = numpy.random.random((100, 100))
+        img = numpy.random.random(self._resolution)
         return img
 
 
@@ -44,6 +46,10 @@ class DiskWriter(camera.ImageWriter):
         @param dest_dir - destination directory to which all images will be
                           written
         '''
+        if not all(check(dest_dir) for check in (os.path.exists, os.path.isdir)):
+            raise ValueError("Destination path must exist and be a directory: "
+                             "{0}".format(dest_dir))
+
         self._dest_dir = dest_dir
 
     @asyncio.coroutine
@@ -67,7 +73,7 @@ class DiskCleaner(camera.ImageCleaner):
     '''
     Deletes images from the disk once the limit of images stored is exceeded.
     '''
-    IMAGE_LIMIT = 1000
+    IMAGE_LIMIT = 100
 
     @asyncio.coroutine
     def clean_image(self, image, image_path, image_cnt):
@@ -93,10 +99,44 @@ class DiskCleaner(camera.ImageCleaner):
 def main():
     try:
         parser = argparse.ArgumentParser("Virtual camera image server")
-    #    parser.add_argument()
 
-        server = VirtualServer(image_per_second=100)
-        writer = DiskWriter(dest_dir="/run/shm")
+        def resolution_tuple(value):
+            if value.count(",") != 1:
+                raise argparse.ArgumentTypeError("{0} is an invalid resolution "
+                                                 "value.".format(value))
+            h, w = [int(v) for v in value.split(",")]
+            return (w, h)
+
+        def positive_int(value):
+            ivalue = int(value)
+            if ivalue <= 0:
+                raise argparse.ArgumentTypeError("{0} is an invalid framerate "
+                                                 "value.".format(value))
+            return ivalue
+
+        parser.add_argument("-p",
+                            "--path",
+                            help="Save path for images.",
+                            required=True)
+
+        parser.add_argument("-r",
+                            "--resolution",
+                            help="Image resolution in the form of H,W.",
+                            default="1280,720",
+                            type=resolution_tuple)
+
+        parser.add_argument("-f",
+                            "--framerate",
+                            help="Camera framerate - number of images to take per second.",
+                            type=positive_int,
+                            default=20)
+
+        args = parser.parse_args()
+
+
+        server = VirtualServer(resolution=args.resolution,
+                               image_per_second=args.framerate)
+        writer = DiskWriter(dest_dir=args.path)
         cleaner = DiskCleaner()
         loop = asyncio.get_event_loop()
 
@@ -105,6 +145,8 @@ def main():
         loop.run_until_complete(sgcamera.serve_images())
     except (SystemExit, KeyboardInterrupt):
         print("Exiting due to interrupt...")
+    except Exception as e:
+        print("Error: {0}".format(e))
 
 
 if __name__ == "__main__":

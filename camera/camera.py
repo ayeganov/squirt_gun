@@ -1,5 +1,6 @@
 import abc
 import asyncio
+import traceback
 
 import sgmsg
 
@@ -65,7 +66,7 @@ class Camera:
         self._writer = image_writer
         self._cleaner = image_cleaner
         self._loop = loop if loop is not None else asyncio.get_event_loop()
-        self._image_pub = async_zmq.SocketFactory.pub_socket(topic="img_path",
+        self._image_pub = async_zmq.SocketFactory.pub_socket(topic="/tmp/img_path",
                                                              loop=self._loop)
 
         self._img_count = 0
@@ -78,8 +79,6 @@ class Camera:
         while True:
             try:
                 image = yield from self._server.serve_image()
-                if not image:
-                    continue
                 image_name = "%06d" % self._img_count
                 path_to_image = yield from self._writer.write_image(image, image_name)
                 msg = sgmsg.msgs.ImagePath.new_message(path=path_to_image)
@@ -90,4 +89,5 @@ class Camera:
                 print("Serving: {0}".format(path_to_image))
             except Exception as e:
                 print("Serving error:", e)
+                traceback.print_exc()
 
