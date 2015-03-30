@@ -3,11 +3,17 @@ import asyncio
 import io
 import os
 import signal
+import traceback
 
 import sgmsg
 
 import libs.async_zmq as async_zmq
+import numpy
 import picamera
+import scipy.misc
+
+
+JPEG_MAGIC_NUM = b'\xff\xd8'
 
 
 class PiCamServer:
@@ -22,6 +28,7 @@ class PiCamServer:
         @param dest_dir - path to write images to
         @param framerate - number of images to serve per second
         @param resolution - (height, width) tuple representing image resolution
+        @param loop - asyncio loop
         '''
         if not all(check(dest_dir) for check in (os.path.exists, os.path.isdir)):
             raise ValueError("Destination path must exist and be a directory: "
@@ -55,7 +62,7 @@ class PiCamServer:
 
     def _process_image(self, image_count, path_to_image):
         '''
-        Processes the newly written image - broadcasts its path to subscribers,
+        Processes the newly written image: broadcasts its path to subscribers,
         and cleans up old images.
 
         @param image_count - count of images written so far
@@ -76,6 +83,25 @@ class PiCamServer:
             except IOError:
                 pass
 
+    def _write_image(self, img_path, img_buf):
+        '''
+        This method does the writing of the image buffer to disk.
+
+        @param img_buf - image buffer in the form of bytes etc.
+        @return True if written, False otherwise
+        '''
+        result = False
+        try:
+            if img_buf.startswith(JPEG_MAGIC_NUM):
+                with io.open(img_path, 'wb') as output:
+                    output.write(img_buf)
+                result = True
+            else:
+                print("JPEG not found:", JPEG_MAGIC_NUM)
+        except IOError as e:
+            traceback.print_exc()
+        return result
+
     def write(self, img_buf):
         '''
         This method is invoked from the picamera background image capturing
@@ -86,17 +112,13 @@ class PiCamServer:
         '''
         try:
             path_to_image = self._make_image_name(self._image_count, self._dest_dir)
-            if img_buf.startswith(b'\xff\xd8'):
-                with io.open(path_to_image, 'wb') as output:
-                    output.write(img_buf)
-
+            if self._write_image(path_to_image, img_buf):
                 self._process_image(self._image_count,
                                     path_to_image)
                 self._image_count += 1
-        except IOError as e:
-            print("Write error: {0}".format(e))
         except Exception as e:
-            print("Unexpected error while writing: {0}".format(e))
+            print("Unexpected error while writing image.")
+            traceback.print_exc()
 
     def start_camera(self):
         '''
@@ -110,6 +132,53 @@ class PiCamServer:
         '''
         self._camera.stop_recording()
         self._image_pub.close()
+
+
+class MotionPiCam(PiCamServer):
+    '''
+    This camera records motion data in the video stream.
+    '''
+    def __init__(self, dest_dir, framerate, resolution, loop=None):
+        '''
+        Initializes the instance of MotionPiCam.
+
+        @param dest_dir - path to write images to
+        @param framerate - number of images to serve per second
+        @param resolution - (height, width) tuple representing image resolution
+        @param loop - asyncio loop
+        '''
+        super().__init__(dest_dir, framerate, resolution, loop)
+        self._motion_dtype = numpy.dtype([
+                        ('x', 'i1'),
+                        ('y', 'i1'),
+                        ('sad', 'u2'),
+                    ])
+        width, height = resolution
+        self._cols = 1 + ((width + 15) // 16)
+        self._rows = (height + 15) // 16
+
+    def _write_image(self, image_path, motion_buf):
+        '''
+        Receive the motion vector buffer and write it out to a file.
+        '''
+        try:
+            data = numpy.fromstring(motion_buf, dtype=self._motion_dtype)
+            data = data.reshape((self._rows, self._cols))
+            data = numpy.sqrt(
+                numpy.square(data['x'].astype(numpy.float)) +
+                numpy.square(data['y'].astype(numpy.float))
+                ).clip(0, 255).astype(numpy.uint8)
+            scipy.misc.imsave(image_path, data)
+            return True
+        except Exception as e:
+            traceback.print_exc()
+        return False
+
+    def start_camera(self):
+        '''
+        Starts camera recording.
+        '''
+        self._camera.start_recording('/dev/null', format='h264', motion_output=self)
 
 
 def ctrl_c(picamera, loop):
@@ -151,14 +220,27 @@ def main():
                             type=int,
                             default=20)
 
+        parser.add_argument("-t",
+                            "--type",
+                            help="Camera type - record pure image data, or motion.",
+                            type=str,
+                            choices=['image', 'motion'],
+                            default="image")
+
         args = parser.parse_args()
 
         loop = asyncio.get_event_loop()
 
-        server = PiCamServer(dest_dir=args.path,
-                             framerate=args.framerate,
-                             resolution=args.resolution,
-                             loop=loop)
+        if args.type == 'image':
+            server = PiCamServer(dest_dir=args.path,
+                                 framerate=args.framerate,
+                                 resolution=args.resolution,
+                                 loop=loop)
+        elif args.type == 'motion':
+            server = MotionPiCam(dest_dir=args.path,
+                                 framerate=args.framerate,
+                                 resolution=args.resolution,
+                                 loop=loop)
 
         loop.add_signal_handler(signal.SIGINT, ctrl_c, server, loop)
         loop.add_signal_handler(signal.SIGTERM, ctrl_c, server, loop)

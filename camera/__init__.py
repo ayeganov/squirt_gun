@@ -4,4 +4,7 @@ from .camera import (ImageServer,
                      Camera)
 
 from .virtual_cam import (main)
-from .picam import (main)
+try:
+    from .picam import (main)
+except:
+    pass
