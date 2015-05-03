@@ -3,7 +3,9 @@ from .camera import (ImageServer,
                      ImageCleaner,
                      Camera)
 
-from .virtual_cam import (main)
+from .virtual_cam import (start)
+from .fs_camera import (start)
+
 try:
     from .picam import (main)
 except:
