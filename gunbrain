@@ -2,4 +2,4 @@
 
 import squirt_gun
 
-squirt_gun.gun.main()
+squirt_gun.gun_ai.main()
