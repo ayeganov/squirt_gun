@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+
+import www.camera_view
+
+www.camera_view.main()
