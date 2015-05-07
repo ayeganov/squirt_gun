@@ -8,5 +8,5 @@ from .fs_camera import (start)
 
 try:
     from .picam import (main)
-except:
-    pass
+except Exception as e:
+    print("Picamera is not available.")
