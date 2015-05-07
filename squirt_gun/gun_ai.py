@@ -154,9 +154,11 @@ class AIController:
         self._net_iface = net_iface
         self._port = port
         self._loop = loop if loop is not None else asyncio.get_event_loop()
-        self._image_pub = async_zmq.SocketFactory.sub_socket(topic="/tmp/img_path",
+        self._image_sub = async_zmq.SocketFactory.sub_socket(topic="/tmp/img_path",
                                                              on_recv=self.process_img_path,
                                                              loop=self._loop)
+        self._shoot_pub_ipc = async_zmq.SocketFactory.pub_socket(topic="/tmp/shoot",
+                                                                 loop=self._loop)
         self._shoot_pub = async_zmq.SocketFactory.pub_socket(host=net_iface,
                                                              port=port,
                                                              transport="tcp",
@@ -183,13 +185,15 @@ class AIController:
         Sends a message to all physical guns to shoot.
         '''
         msg = sgmsg.msgs.Shoot.new_message(type="single")
-        self._shoot_pub.send(msg.to_bytes())
+        msg_bytes = msg.to_bytes()
+        self._shoot_pub.send(msg_bytes)
+        self._shoot_pub_ipc.send(msg_bytes)
 
     def shutdown(self):
         '''
         Shut down the ai controller: release all resources etc.
         '''
-        self._image_pub.close()
+        self._image_sub.close()
 
 
 def ctrl_c(ai_control, loop):
