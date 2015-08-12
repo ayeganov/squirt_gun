@@ -1,5 +1,88 @@
 #!/usr/bin/env python3
 
+import argparse
+import traceback
+import sys
+
 import camera
 
-camera.virtual_cam.main()
+
+def main():
+    try:
+        def resolution_tuple(value):
+            if value.count(",") != 1:
+                raise argparse.ArgumentTypeError("{0} is an invalid resolution "
+                                                 "value.".format(value))
+            h, w = [int(v) for v in value.split(",")]
+            return (w, h)
+
+        def positive_int(value):
+            ivalue = int(value)
+            if ivalue <= 0:
+                raise argparse.ArgumentTypeError("{0} is an invalid framerate "
+                                                 "value.".format(value))
+            return ivalue
+
+        parser = argparse.ArgumentParser(description="Virtual Camera Image Server",
+                                         prog="virtcam")
+        subparsers = parser.add_subparsers()
+
+        parser_fs = subparsers.add_parser("fscamera")
+
+        parser_fs.add_argument("-d",
+                            "--directory",
+                            help="Directory containing images to be served.",
+                            required=True)
+
+        parser_fs.add_argument("-c",
+                            "--cycle",
+                            help="Should images be served indefinitely?",
+                            action="store_true")
+
+        parser_fs.add_argument("-f",
+                            "--format",
+                            help="Format of images to be served: *.jpg, *.png etc.",
+                            type=str,
+                            default="*.jpg")
+
+        parser_fs.add_argument("-r",
+                            "--rate",
+                            help="Camera framerate - number of images to serve per second.",
+                            type=positive_int,
+                            default=20)
+        parser_fs.set_defaults(func=camera.fs_camera.start)
+
+        parser_rand = subparsers.add_parser("randcam")
+        parser_rand.add_argument("-p",
+                            "--path",
+                            help="Save path for images.",
+                            required=True)
+
+        parser_rand.add_argument("-r",
+                            "--resolution",
+                            help="Image resolution in the form of H,W.",
+                            default="1280,720",
+                            type=resolution_tuple)
+
+        parser_rand.add_argument("-f",
+                            "--framerate",
+                            help="Camera framerate - number of images to take per second.",
+                            type=positive_int,
+                            default=20)
+        parser_rand.set_defaults(func=camera.virtual_cam.start)
+
+        args = parser.parse_args()
+        if len(sys.argv) <= 1:
+            parser.print_help()
+            sys.exit(1)
+
+        args.func(args)
+
+    except (SystemExit, KeyboardInterrupt):
+        print("Exiting due to interrupt...")
+    except Exception:
+        traceback.print_exc()
+
+
+if __name__ == "__main__":
+    main()

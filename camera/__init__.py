@@ -3,8 +3,10 @@ from .camera import (ImageServer,
                      ImageCleaner,
                      Camera)
 
-from .virtual_cam import (main)
+from .virtual_cam import (start)
+from .fs_camera import (start)
+
 try:
     from .picam import (main)
-except:
-    pass
+except Exception as e:
+    print("Picamera is not available.")

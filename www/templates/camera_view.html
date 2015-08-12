@@ -1,0 +1,40 @@
+
+<html>
+<head>
+
+<link type="text/css" rel="stylesheet" href="static/css/camera_view.css" />
+<link rel="stylesheet" type="text/css" href="static/dojox/widget/Toaster/Toaster.css" >
+
+<script type="text/javascript" src="static/underscore/underscore-min.js"></script>
+
+<script type="text/javascript" src="static/dojo/dojo.js"; data-dojo-config="async: true"></script>
+<script type="text/javascript" src="static/gun/camera_view.js"></script>
+
+<title>Cat Camera</title>
+</head>
+<body>
+
+    <div id="Header">
+        <div class="Logo"><a href="#"><span>Cat</span>Cam</a></div>
+    </div>
+
+    <div id="container">
+        <div class="sidebar">
+
+            <ul id="nav">
+                <li><a href="#" id="fps_count">FPS: 0</a></li>
+                <li><a href="#" id="shot_fired">Shot: all clear</a></li>
+                <li><a href="#">bang bang</a></li>
+                <li><a href="#">bang bang</a></li>
+                <li><a href="#">bang bang</a></li>
+                <li><a href="#">bang bang</a></li>
+            </ul>
+
+        </div>
+        <div class="content">
+            <canvas id="view" height="720" width="1280"></canvas>
+        </div>
+    </div>
+</body>
+
+</html>

@@ -11,7 +11,8 @@ class ImageServer(metaclass=abc.ABCMeta):
     '''
     This is an image server interface, it allows its users to receive images
     from it. Implementers must implement serve_image method, which is suppose
-    to return an image in the form of a numpy array.
+    to return an image in the form of a numpy array. Method serve_image must be
+    a coroutine.
     '''
     @abc.abstractmethod
     def serve_image(self):
@@ -23,7 +24,7 @@ class ImageServer(metaclass=abc.ABCMeta):
 class ImageWriter(metaclass=abc.ABCMeta):
     '''
     This is an image writer interface. Implementers must implement write_image
-    method.
+    method. Method write_image must be a coroutine.
     '''
     @abc.abstractmethod
     def write_image(self, image, image_name):
@@ -39,7 +40,7 @@ class ImageCleaner(metaclass=abc.ABCMeta):
     '''
     This is an image cleaner interface. Implementers must implement clean_image
     method. That method accepts current image, its path, and image count from
-    the camera.
+    the camera. Method clean_image must be a coroutine.
     '''
     @abc.abstractmethod
     def clean_image(self, image, image_path, img_count):
@@ -68,7 +69,6 @@ class Camera:
         self._loop = loop if loop is not None else asyncio.get_event_loop()
         self._image_pub = async_zmq.SocketFactory.pub_socket(topic="/tmp/img_path",
                                                              loop=self._loop)
-
         self._img_count = 0
 
     @asyncio.coroutine
@@ -90,4 +90,6 @@ class Camera:
             except Exception as e:
                 print("Serving error:", e)
                 traceback.print_exc()
+            except StopIteration:
+                break
 

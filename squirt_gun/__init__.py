@@ -1,2 +1,3 @@
-from . import (auto_gun,)
-from .auto_gun import (main)
+from . import (gun_ai,)
+from .gun_ai import (main)
+from .gun import (main)
